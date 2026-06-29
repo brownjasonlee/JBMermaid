@@ -34,6 +34,7 @@ body {
 }
 
 button,
+input,
 textarea {
   font: inherit;
 }
@@ -53,7 +54,13 @@ button:hover {
   border-color: #aab5c0;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 button:focus-visible,
+input:focus-visible,
 textarea:focus-visible {
   outline: 3px solid rgba(15, 118, 110, 0.24);
   outline-offset: 2px;
@@ -61,17 +68,20 @@ textarea:focus-visible {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
+  grid-template-columns: minmax(250px, 320px) minmax(320px, 420px) minmax(0, 1fr);
+  grid-template-areas: "gallery editor canvas";
   gap: 16px;
   height: 100%;
   padding: 16px;
 }
 
+.gallery-pane,
 .editor-pane,
 .canvas-pane {
   min-height: 0;
 }
 
+.gallery-pane,
 .editor-pane {
   display: flex;
   flex-direction: column;
@@ -81,6 +91,25 @@ textarea:focus-visible {
   border-radius: 8px;
   box-shadow: var(--shadow);
   padding: 18px;
+}
+
+.gallery-pane {
+  grid-area: gallery;
+}
+
+.editor-pane {
+  grid-area: editor;
+}
+
+.canvas-pane {
+  grid-area: canvas;
+}
+
+.gallery-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .pane-header {
@@ -94,6 +123,12 @@ h1 {
   margin: 0;
   font-size: 1.55rem;
   line-height: 1.15;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
 }
 
 p {
@@ -115,12 +150,122 @@ p {
   border-color: var(--accent-strong);
 }
 
+.gallery-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.gallery-actions .primary-button {
+  grid-column: 1 / -1;
+}
+
+.gallery-status {
+  margin: 0;
+  min-height: 2.6em;
+  font-size: 0.84rem;
+}
+
+.gallery-status.error {
+  color: var(--danger);
+  font-weight: 650;
+}
+
+.gallery-grid {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.gallery-empty {
+  margin: 0;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+}
+
+.gallery-card {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+  min-height: 82px;
+  padding: 8px;
+  text-align: left;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.gallery-card.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.16);
+}
+
+.thumbnail {
+  display: grid;
+  width: 78px;
+  height: 66px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.thumbnail svg {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.thumbnail-error {
+  color: var(--danger);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.gallery-card-title {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-card-meta {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .editor-label {
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.title-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  min-height: 40px;
+  padding: 0 12px;
 }
 
 textarea {
@@ -224,12 +369,42 @@ textarea {
   white-space: pre-wrap;
 }
 
+@media (max-width: 1180px) {
+  .app-shell {
+    grid-template-columns: minmax(250px, 320px) minmax(0, 1fr);
+    grid-template-areas:
+      "gallery editor"
+      "gallery canvas";
+    grid-template-rows: minmax(340px, 46vh) minmax(420px, 1fr);
+  }
+
+  .gallery-pane {
+    min-height: 0;
+  }
+
+  textarea {
+    min-height: 210px;
+  }
+
+  .canvas-pane {
+    min-height: 420px;
+  }
+}
+
 @media (max-width: 860px) {
   .app-shell {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(360px, 48vh) minmax(420px, 1fr);
+    grid-template-areas:
+      "gallery"
+      "editor"
+      "canvas";
+    grid-template-rows: auto minmax(360px, 48vh) minmax(420px, 1fr);
     height: auto;
     min-height: 100%;
+  }
+
+  .gallery-pane {
+    max-height: 420px;
   }
 
   textarea {

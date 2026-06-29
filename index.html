@@ -8,14 +8,37 @@
   </head>
   <body>
     <main class="app-shell">
+      <section class="gallery-pane" aria-label="Local diagram gallery">
+        <header class="gallery-header">
+          <div>
+            <h2>Local Gallery</h2>
+            <p id="folderName">No folder selected</p>
+          </div>
+        </header>
+
+        <div class="gallery-actions" aria-label="Local folder controls">
+          <button id="chooseFolderButton" class="primary-button" type="button">Choose Folder</button>
+          <button id="refreshGalleryButton" type="button">Refresh</button>
+          <button id="newDiagramButton" type="button">New</button>
+          <button id="saveDiagramButton" type="button">Save</button>
+          <button id="saveAsDiagramButton" type="button">Save As</button>
+        </div>
+
+        <p id="galleryStatus" class="gallery-status" role="status">Choose a folder to show local Mermaid files.</p>
+        <div id="galleryGrid" class="gallery-grid" aria-label="Saved Mermaid diagrams"></div>
+      </section>
+
       <section class="editor-pane" aria-label="Mermaid editor">
         <header class="pane-header">
           <div>
             <h1>Mermaid Canvas</h1>
-            <p>Paste Mermaid code and explore the rendered diagram with unbounded pan and zoom.</p>
+            <p>Paste Mermaid code, save local files, and explore the rendered diagram with unbounded pan and zoom.</p>
           </div>
           <button id="renderButton" class="primary-button" type="button">Render</button>
         </header>
+
+        <label class="editor-label" for="diagramTitle">Diagram title</label>
+        <input id="diagramTitle" class="title-input" type="text" value="Untitled Diagram" autocomplete="off">
 
         <label class="editor-label" for="mermaidInput">Mermaid source</label>
         <textarea id="mermaidInput" spellcheck="false" autocomplete="off">flowchart LR
