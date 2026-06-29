@@ -52,6 +52,9 @@ const state = {
   lastPointer: null,
   pinch: null,
   lastSvg: "",
+  manualLayout: null,
+  dragNode: null,
+  sourceDirty: false,
   directoryHandle: null,
   diagrams: [],
   currentFileName: null,
@@ -168,6 +171,289 @@ function applyTransform() {
   }
 }
 
+function parseTranslate(transform) {
+  const match = /translate\(\s*([-.\d]+)(?:[,\s]+([-.\d]+))?\s*\)/.exec(transform || "");
+  return {
+    x: match ? Number.parseFloat(match[1]) : 0,
+    y: match && match[2] ? Number.parseFloat(match[2]) : 0,
+  };
+}
+
+function setTranslate(element, point) {
+  element.setAttribute("transform", `translate(${point.x}, ${point.y})`);
+}
+
+function getNodeKey(node) {
+  const match = /-flowchart-(.+)-\d+$/.exec(node.id);
+  return match ? match[1] : "";
+}
+
+function getNodeShapeBounds(node) {
+  const shape = node.querySelector(".label-container");
+  if (!shape) {
+    return { left: -40, right: 40, top: -24, bottom: 24 };
+  }
+
+  const offset = parseTranslate(shape.getAttribute("transform"));
+
+  if (shape.tagName.toLowerCase() === "rect") {
+    const x = Number.parseFloat(shape.getAttribute("x")) || 0;
+    const y = Number.parseFloat(shape.getAttribute("y")) || 0;
+    const width = Number.parseFloat(shape.getAttribute("width")) || 80;
+    const height = Number.parseFloat(shape.getAttribute("height")) || 48;
+    return {
+      left: x + offset.x,
+      right: x + width + offset.x,
+      top: y + offset.y,
+      bottom: y + height + offset.y,
+    };
+  }
+
+  if (shape.tagName.toLowerCase() === "polygon") {
+    const points = (shape.getAttribute("points") || "")
+      .trim()
+      .split(/\s+/)
+      .map((pair) => pair.split(",").map(Number))
+      .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+    if (points.length) {
+      return {
+        left: Math.min(...points.map(([x]) => x)) + offset.x,
+        right: Math.max(...points.map(([x]) => x)) + offset.x,
+        top: Math.min(...points.map(([, y]) => y)) + offset.y,
+        bottom: Math.max(...points.map(([, y]) => y)) + offset.y,
+      };
+    }
+  }
+
+  if (shape.getBBox) {
+    try {
+      const box = shape.getBBox();
+      return {
+        left: box.x + offset.x,
+        right: box.x + box.width + offset.x,
+        top: box.y + offset.y,
+        bottom: box.y + box.height + offset.y,
+      };
+    } catch {
+      return { left: -40, right: 40, top: -24, bottom: 24 };
+    }
+  }
+
+  return { left: -40, right: 40, top: -24, bottom: 24 };
+}
+
+function edgeEndpoint(from, to, bounds) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const width = Math.max(Math.abs(bounds.left), Math.abs(bounds.right), 1);
+  const height = Math.max(Math.abs(bounds.top), Math.abs(bounds.bottom), 1);
+  const scale = Math.max(Math.abs(dx) / width, Math.abs(dy) / height, 1);
+  return {
+    x: from.x + dx / scale,
+    y: from.y + dy / scale,
+  };
+}
+
+function connectorPath(start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const horizontal = Math.abs(dx) >= Math.abs(dy);
+  const span = Math.abs(horizontal ? dx : dy);
+  const curve = Math.min(span * 0.45, 160);
+
+  if (horizontal) {
+    const direction = dx >= 0 ? 1 : -1;
+    return `M${start.x},${start.y} C${start.x + curve * direction},${start.y} ${end.x - curve * direction},${end.y} ${end.x},${end.y}`;
+  }
+
+  const direction = dy >= 0 ? 1 : -1;
+  return `M${start.x},${start.y} C${start.x},${start.y + curve * direction} ${end.x},${end.y - curve * direction} ${end.x},${end.y}`;
+}
+
+function parseEdgeNodes(edgePath, nodeKeys) {
+  const edgeMatch = /-L_(.+)_\d+$/.exec(edgePath.id);
+  const edgeKey = edgeMatch ? edgeMatch[1] : "";
+  if (!edgeKey) {
+    return null;
+  }
+
+  for (const fromKey of nodeKeys) {
+    const prefix = `${fromKey}_`;
+    if (!edgeKey.startsWith(prefix)) {
+      continue;
+    }
+    const toKey = edgeKey.slice(prefix.length);
+    if (nodeKeys.includes(toKey)) {
+      return { fromKey, toKey };
+    }
+  }
+
+  return null;
+}
+
+function initializeManualLayout() {
+  const svg = getSvgElement();
+  if (!svg) {
+    state.manualLayout = null;
+    return;
+  }
+
+  const nodes = Array.from(svg.querySelectorAll("g.node[id*='-flowchart-']"));
+  if (!nodes.length) {
+    state.manualLayout = null;
+    return;
+  }
+
+  const nodeMap = new Map();
+  for (const node of nodes) {
+    const key = getNodeKey(node);
+    if (!key) {
+      continue;
+    }
+
+    const center = parseTranslate(node.getAttribute("transform"));
+    nodeMap.set(key, {
+      key,
+      element: node,
+      center,
+      bounds: getNodeShapeBounds(node),
+    });
+    node.classList.add("draggable-node");
+    node.setAttribute("tabindex", "0");
+  }
+
+  const nodeKeys = Array.from(nodeMap.keys());
+  const edges = Array.from(svg.querySelectorAll("path.flowchart-link"))
+    .map((path) => {
+      const endpoints = parseEdgeNodes(path, nodeKeys);
+      if (!endpoints) {
+        return null;
+      }
+
+      const edgeLabel = path.closest("g.edgePath")?.nextElementSibling?.matches?.("g.edgeLabel")
+        ? path.closest("g.edgePath").nextElementSibling
+        : null;
+      return { path, edgeLabel, ...endpoints };
+    })
+    .filter(Boolean);
+
+  state.manualLayout = { svg, nodeMap, edges };
+  updateConnectedEdges();
+}
+
+function updateConnectedEdges() {
+  if (!state.manualLayout) {
+    return;
+  }
+
+  for (const edge of state.manualLayout.edges) {
+    const from = state.manualLayout.nodeMap.get(edge.fromKey);
+    const to = state.manualLayout.nodeMap.get(edge.toKey);
+    if (!from || !to) {
+      continue;
+    }
+
+    const start = edgeEndpoint(from.center, to.center, from.bounds);
+    const end = edgeEndpoint(to.center, from.center, to.bounds);
+    edge.path.setAttribute("d", connectorPath(start, end));
+
+    if (edge.edgeLabel && edge.edgeLabel.textContent.trim()) {
+      setTranslate(edge.edgeLabel, {
+        x: (start.x + end.x) / 2,
+        y: (start.y + end.y) / 2,
+      });
+    }
+  }
+}
+
+function pointerToSvgPoint(event) {
+  const svg = getSvgElement();
+  if (!svg) {
+    return null;
+  }
+
+  const point = svg.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  return point.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+function serializeCurrentSvg() {
+  const svg = getSvgElement();
+  if (!svg) {
+    return "";
+  }
+
+  const clone = svg.cloneNode(true);
+  clone.style.removeProperty("width");
+  clone.style.removeProperty("height");
+  clone.querySelectorAll(".draggable-node").forEach((node) => {
+    node.classList.remove("draggable-node", "is-dragging-node");
+    node.removeAttribute("tabindex");
+  });
+  return new XMLSerializer().serializeToString(clone);
+}
+
+function handleNodePointerDown(event) {
+  const nodeElement = event.target.closest?.("g.draggable-node");
+  if (!nodeElement || !state.manualLayout) {
+    return;
+  }
+
+  const key = getNodeKey(nodeElement);
+  const node = state.manualLayout.nodeMap.get(key);
+  const startPoint = pointerToSvgPoint(event);
+  if (!node || !startPoint) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  surface.setPointerCapture(event.pointerId);
+  nodeElement.classList.add("is-dragging-node");
+  state.dragNode = {
+    pointerId: event.pointerId,
+    key,
+    startPoint,
+    startCenter: { ...node.center },
+  };
+}
+
+function handleNodePointerMove(event) {
+  if (!state.dragNode || event.pointerId !== state.dragNode.pointerId || !state.manualLayout) {
+    return;
+  }
+
+  const currentPoint = pointerToSvgPoint(event);
+  const node = state.manualLayout.nodeMap.get(state.dragNode.key);
+  if (!currentPoint || !node) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  node.center = {
+    x: state.dragNode.startCenter.x + currentPoint.x - state.dragNode.startPoint.x,
+    y: state.dragNode.startCenter.y + currentPoint.y - state.dragNode.startPoint.y,
+  };
+  setTranslate(node.element, node.center);
+  updateConnectedEdges();
+}
+
+function handleNodePointerUp(event) {
+  if (!state.dragNode || event.pointerId !== state.dragNode.pointerId || !state.manualLayout) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  const node = state.manualLayout.nodeMap.get(state.dragNode.key);
+  node?.element.classList.remove("is-dragging-node");
+  state.dragNode = null;
+  state.lastSvg = serializeCurrentSvg();
+  setStatus("Layout adjusted");
+}
+
 function getSvgElement() {
   return surface.querySelector("svg");
 }
@@ -250,6 +536,8 @@ async function renderDiagram({ fit = false } = {}) {
   if (!source) {
     surface.innerHTML = "";
     state.lastSvg = "";
+    state.manualLayout = null;
+    state.sourceDirty = false;
     setStatus("Paste Mermaid code to render");
     return false;
   }
@@ -264,7 +552,9 @@ async function renderDiagram({ fit = false } = {}) {
     }
 
     state.lastSvg = svg;
+    state.sourceDirty = false;
     surface.innerHTML = state.lastSvg;
+    initializeManualLayout();
     setStatus("Rendered");
     requestAnimationFrame(() => {
       if (fit) {
@@ -280,6 +570,8 @@ async function renderDiagram({ fit = false } = {}) {
     }
 
     state.lastSvg = "";
+    state.manualLayout = null;
+    state.sourceDirty = false;
     const message = error?.message || String(error);
     surface.innerHTML = `<pre class="render-error">${escapeHtml(message)}</pre>`;
     resetView();
@@ -550,7 +842,11 @@ async function saveDiagram({ saveAs = false } = {}) {
     return;
   }
 
-  await renderDiagram();
+  if (state.sourceDirty || !state.lastSvg) {
+    await renderDiagram();
+  } else {
+    state.lastSvg = serializeCurrentSvg();
+  }
   const creatingNewFile = saveAs || !state.currentFileName;
   const stem = creatingNewFile
     ? await nextAvailableStem(slugify(titleInput.value))
@@ -650,6 +946,11 @@ viewport.addEventListener(
   { passive: false },
 );
 
+surface.addEventListener("pointerdown", handleNodePointerDown, true);
+surface.addEventListener("pointermove", handleNodePointerMove, true);
+surface.addEventListener("pointerup", handleNodePointerUp, true);
+surface.addEventListener("pointercancel", handleNodePointerUp, true);
+
 viewport.addEventListener("pointerdown", (event) => {
   viewport.setPointerCapture(event.pointerId);
   viewport.classList.add("is-dragging");
@@ -729,6 +1030,7 @@ newDiagramButton.addEventListener("click", newDiagram);
 saveDiagramButton.addEventListener("click", () => saveDiagram());
 saveAsDiagramButton.addEventListener("click", () => saveDiagram({ saveAs: true }));
 input.addEventListener("input", () => {
+  state.sourceDirty = true;
   updateLineCount();
   scheduleRender();
 });

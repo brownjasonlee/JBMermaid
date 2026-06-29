@@ -405,6 +405,22 @@ textarea {
   text-rendering: geometricPrecision;
 }
 
+.diagram-surface .draggable-node {
+  cursor: move;
+}
+
+.diagram-surface .draggable-node .label-container {
+  transition:
+    filter 120ms ease,
+    stroke-width 120ms ease;
+}
+
+.diagram-surface .draggable-node:hover .label-container,
+.diagram-surface .draggable-node.is-dragging-node .label-container {
+  filter: drop-shadow(0 8px 16px rgba(15, 118, 110, 0.18));
+  stroke-width: 2px;
+}
+
 .diagram-surface .render-error {
   width: min(680px, calc(100vw - 48px));
   margin: 88px 24px;
