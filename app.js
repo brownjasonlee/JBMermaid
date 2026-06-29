@@ -54,6 +54,7 @@ const state = {
   lastSvg: "",
   manualLayout: null,
   dragNode: null,
+  layoutDirty: false,
   sourceDirty: false,
   directoryHandle: null,
   diagrams: [],
@@ -271,18 +272,18 @@ function connectorPath(start, end) {
 }
 
 function parseEdgeNodes(edgePath, nodeKeys) {
-  const edgeMatch = /-L_(.+)_\d+$/.exec(edgePath.id);
-  const edgeKey = edgeMatch ? edgeMatch[1] : "";
-  if (!edgeKey) {
+  const edgeKey = getEdgeKey(edgePath);
+  const edgeBody = edgeKey.replace(/^L_/, "").replace(/_\d+$/, "");
+  if (!edgeBody) {
     return null;
   }
 
   for (const fromKey of nodeKeys) {
     const prefix = `${fromKey}_`;
-    if (!edgeKey.startsWith(prefix)) {
+    if (!edgeBody.startsWith(prefix)) {
       continue;
     }
-    const toKey = edgeKey.slice(prefix.length);
+    const toKey = edgeBody.slice(prefix.length);
     if (nodeKeys.includes(toKey)) {
       return { fromKey, toKey };
     }
@@ -291,16 +292,23 @@ function parseEdgeNodes(edgePath, nodeKeys) {
   return null;
 }
 
+function getEdgeKey(edgePath) {
+  const match = /-(L_.+_\d+)$/.exec(edgePath.id);
+  return match ? match[1] : "";
+}
+
 function initializeManualLayout() {
   const svg = getSvgElement();
   if (!svg) {
     state.manualLayout = null;
+    state.layoutDirty = false;
     return;
   }
 
   const nodes = Array.from(svg.querySelectorAll("g.node[id*='-flowchart-']"));
   if (!nodes.length) {
     state.manualLayout = null;
+    state.layoutDirty = false;
     return;
   }
 
@@ -323,6 +331,12 @@ function initializeManualLayout() {
   }
 
   const nodeKeys = Array.from(nodeMap.keys());
+  const edgeLabels = new Map(
+    Array.from(svg.querySelectorAll("g.edgeLabel g.label[data-id]")).map((label) => [
+      label.getAttribute("data-id"),
+      label.closest("g.edgeLabel"),
+    ]),
+  );
   const edges = Array.from(svg.querySelectorAll("path.flowchart-link"))
     .map((path) => {
       const endpoints = parseEdgeNodes(path, nodeKeys);
@@ -330,9 +344,7 @@ function initializeManualLayout() {
         return null;
       }
 
-      const edgeLabel = path.closest("g.edgePath")?.nextElementSibling?.matches?.("g.edgeLabel")
-        ? path.closest("g.edgePath").nextElementSibling
-        : null;
+      const edgeLabel = edgeLabels.get(getEdgeKey(path)) || null;
       return { path, edgeLabel, ...endpoints };
     })
     .filter(Boolean);
@@ -394,6 +406,13 @@ function serializeCurrentSvg() {
   return new XMLSerializer().serializeToString(clone);
 }
 
+function syncCurrentLayoutSvg() {
+  if (state.manualLayout && !state.sourceDirty) {
+    state.lastSvg = serializeCurrentSvg();
+    state.layoutDirty = false;
+  }
+}
+
 function handleNodePointerDown(event) {
   const nodeElement = event.target.closest?.("g.draggable-node");
   if (!nodeElement || !state.manualLayout) {
@@ -438,6 +457,7 @@ function handleNodePointerMove(event) {
   };
   setTranslate(node.element, node.center);
   updateConnectedEdges();
+  state.layoutDirty = true;
 }
 
 function handleNodePointerUp(event) {
@@ -450,7 +470,7 @@ function handleNodePointerUp(event) {
   const node = state.manualLayout.nodeMap.get(state.dragNode.key);
   node?.element.classList.remove("is-dragging-node");
   state.dragNode = null;
-  state.lastSvg = serializeCurrentSvg();
+  syncCurrentLayoutSvg();
   setStatus("Layout adjusted");
 }
 
@@ -537,6 +557,7 @@ async function renderDiagram({ fit = false } = {}) {
     surface.innerHTML = "";
     state.lastSvg = "";
     state.manualLayout = null;
+    state.layoutDirty = false;
     state.sourceDirty = false;
     setStatus("Paste Mermaid code to render");
     return false;
@@ -552,6 +573,7 @@ async function renderDiagram({ fit = false } = {}) {
     }
 
     state.lastSvg = svg;
+    state.layoutDirty = false;
     state.sourceDirty = false;
     surface.innerHTML = state.lastSvg;
     initializeManualLayout();
@@ -571,6 +593,7 @@ async function renderDiagram({ fit = false } = {}) {
 
     state.lastSvg = "";
     state.manualLayout = null;
+    state.layoutDirty = false;
     state.sourceDirty = false;
     const message = error?.message || String(error);
     surface.innerHTML = `<pre class="render-error">${escapeHtml(message)}</pre>`;
@@ -845,7 +868,7 @@ async function saveDiagram({ saveAs = false } = {}) {
   if (state.sourceDirty || !state.lastSvg) {
     await renderDiagram();
   } else {
-    state.lastSvg = serializeCurrentSvg();
+    syncCurrentLayoutSvg();
   }
   const creatingNewFile = saveAs || !state.currentFileName;
   const stem = creatingNewFile
@@ -1036,6 +1059,7 @@ input.addEventListener("input", () => {
 });
 
 copyButton.addEventListener("click", async () => {
+  syncCurrentLayoutSvg();
   if (!state.lastSvg) {
     setStatus("Nothing to copy", true);
     return;
@@ -1046,6 +1070,7 @@ copyButton.addEventListener("click", async () => {
 });
 
 downloadButton.addEventListener("click", () => {
+  syncCurrentLayoutSvg();
   if (!state.lastSvg) {
     setStatus("Nothing to download", true);
     return;
