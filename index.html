@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mermaid Canvas</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="editor-pane" aria-label="Mermaid editor">
+        <header class="pane-header">
+          <div>
+            <h1>Mermaid Canvas</h1>
+            <p>Paste Mermaid code and explore the rendered diagram with unbounded pan and zoom.</p>
+          </div>
+          <button id="renderButton" class="primary-button" type="button">Render</button>
+        </header>
+
+        <label class="editor-label" for="mermaidInput">Mermaid source</label>
+        <textarea id="mermaidInput" spellcheck="false" autocomplete="off">flowchart LR
+  A[Paste Mermaid code] --> B{Render}
+  B -->|Drag| C[Pan anywhere]
+  B -->|Wheel or pinch| D[Zoom without limits]
+  C --> E[Export SVG]
+  D --> E</textarea>
+
+        <div class="status-row">
+          <span id="statusText" role="status">Ready</span>
+          <span id="lineCount">5 lines</span>
+        </div>
+      </section>
+
+      <section class="canvas-pane" aria-label="Rendered Mermaid diagram">
+        <div class="canvas-toolbar" aria-label="Canvas controls">
+          <button id="fitButton" type="button" title="Fit diagram to view">Fit</button>
+          <button id="resetButton" type="button" title="Reset pan and zoom">Reset</button>
+          <button id="copyButton" type="button" title="Copy SVG markup">Copy SVG</button>
+          <button id="downloadButton" type="button" title="Download SVG">Download</button>
+        </div>
+        <div id="viewport" class="viewport">
+          <div id="diagramSurface" class="diagram-surface" aria-live="polite"></div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
