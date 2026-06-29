@@ -16,6 +16,9 @@ const DIRECTORY_KEY = "lastDirectory";
 const input = document.querySelector("#mermaidInput");
 const titleInput = document.querySelector("#diagramTitle");
 const renderButton = document.querySelector("#renderButton");
+const toggleGalleryButton = document.querySelector("#toggleGalleryButton");
+const toggleEditorButton = document.querySelector("#toggleEditorButton");
+const fullscreenButton = document.querySelector("#fullscreenButton");
 const fitButton = document.querySelector("#fitButton");
 const resetButton = document.querySelector("#resetButton");
 const copyButton = document.querySelector("#copyButton");
@@ -30,8 +33,10 @@ const galleryStatus = document.querySelector("#galleryStatus");
 const folderName = document.querySelector("#folderName");
 const viewport = document.querySelector("#viewport");
 const surface = document.querySelector("#diagramSurface");
+const canvasPane = document.querySelector(".canvas-pane");
 const statusText = document.querySelector("#statusText");
 const lineCount = document.querySelector("#lineCount");
+const appShell = document.querySelector(".app-shell");
 
 const supportsLocalFolders =
   "showDirectoryPicker" in window &&
@@ -50,6 +55,9 @@ const state = {
   directoryHandle: null,
   diagrams: [],
   currentFileName: null,
+  galleryHidden: false,
+  editorHidden: false,
+  fullscreen: false,
 };
 
 let renderSequence = 0;
@@ -87,6 +95,66 @@ function updateButtonStates() {
   refreshGalleryButton.disabled = !supportsLocalFolders || !hasDirectory;
   saveDiagramButton.disabled = !supportsLocalFolders || !hasDirectory;
   saveAsDiagramButton.disabled = !supportsLocalFolders || !hasDirectory;
+}
+
+function applyLayoutState() {
+  appShell.classList.toggle("is-gallery-hidden", state.galleryHidden);
+  appShell.classList.toggle("is-editor-hidden", state.editorHidden);
+  appShell.classList.toggle("is-fullscreen", state.fullscreen);
+  toggleGalleryButton.setAttribute("aria-pressed", String(state.galleryHidden || state.fullscreen));
+  toggleEditorButton.setAttribute("aria-pressed", String(state.editorHidden || state.fullscreen));
+  fullscreenButton.setAttribute("aria-pressed", String(state.fullscreen));
+  toggleGalleryButton.textContent = state.galleryHidden || state.fullscreen ? "Show Gallery" : "Hide Gallery";
+  toggleEditorButton.textContent = state.editorHidden || state.fullscreen ? "Show Code" : "Hide Code";
+  fullscreenButton.textContent = state.fullscreen ? "Exit Full Screen" : "Full Screen";
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => fitDiagram());
+  });
+}
+
+function setFullscreen(enabled) {
+  state.fullscreen = enabled;
+  applyLayoutState();
+}
+
+async function toggleFullscreen() {
+  if (state.fullscreen) {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      await document.exitFullscreen();
+    }
+    setFullscreen(false);
+    return;
+  }
+
+  setFullscreen(true);
+  if (canvasPane.requestFullscreen) {
+    try {
+      await canvasPane.requestFullscreen();
+    } catch {
+      // CSS fullscreen still expands the canvas when browser fullscreen is unavailable.
+    }
+  }
+}
+
+function toggleGalleryPanel() {
+  if (state.fullscreen) {
+    state.fullscreen = false;
+    state.galleryHidden = false;
+  } else {
+    state.galleryHidden = !state.galleryHidden;
+  }
+  applyLayoutState();
+}
+
+function toggleEditorPanel() {
+  if (state.fullscreen) {
+    state.fullscreen = false;
+    state.editorHidden = false;
+  } else {
+    state.editorHidden = !state.editorHidden;
+  }
+  applyLayoutState();
 }
 
 function applyTransform() {
@@ -650,6 +718,9 @@ viewport.addEventListener("pointerup", releasePointer);
 viewport.addEventListener("pointercancel", releasePointer);
 
 renderButton.addEventListener("click", () => renderDiagram({ fit: true }));
+toggleGalleryButton.addEventListener("click", toggleGalleryPanel);
+toggleEditorButton.addEventListener("click", toggleEditorPanel);
+fullscreenButton.addEventListener("click", toggleFullscreen);
 fitButton.addEventListener("click", fitDiagram);
 resetButton.addEventListener("click", resetView);
 chooseFolderButton.addEventListener("click", chooseFolder);
@@ -691,9 +762,15 @@ downloadButton.addEventListener("click", () => {
 });
 
 window.addEventListener("resize", () => fitDiagram());
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement && state.fullscreen) {
+    setFullscreen(false);
+  }
+});
 
 updateLineCount();
 updateButtonStates();
+applyLayoutState();
 applyTransform();
 renderDiagram({ fit: true });
 loadStoredFolder();

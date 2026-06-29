@@ -75,6 +75,22 @@ textarea:focus-visible {
   padding: 16px;
 }
 
+.app-shell.is-gallery-hidden {
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  grid-template-areas: "editor canvas";
+}
+
+.app-shell.is-editor-hidden {
+  grid-template-columns: minmax(250px, 320px) minmax(0, 1fr);
+  grid-template-areas: "gallery canvas";
+}
+
+.app-shell.is-gallery-hidden.is-editor-hidden,
+.app-shell.is-fullscreen {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "canvas";
+}
+
 .gallery-pane,
 .editor-pane,
 .canvas-pane {
@@ -103,6 +119,30 @@ textarea:focus-visible {
 
 .canvas-pane {
   grid-area: canvas;
+}
+
+.app-shell.is-gallery-hidden .gallery-pane,
+.app-shell.is-editor-hidden .editor-pane,
+.app-shell.is-fullscreen .gallery-pane,
+.app-shell.is-fullscreen .editor-pane {
+  display: none;
+}
+
+.app-shell.is-fullscreen {
+  padding: 0;
+}
+
+.app-shell.is-fullscreen .canvas-pane {
+  border: 0;
+  border-radius: 0;
+  min-height: 100vh;
+}
+
+.canvas-pane:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  border-radius: 0;
 }
 
 .gallery-header {
@@ -324,6 +364,12 @@ textarea {
   backdrop-filter: blur(10px);
 }
 
+.canvas-toolbar button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: rgba(15, 118, 110, 0.12);
+  color: var(--accent-strong);
+}
+
 .viewport {
   width: 100%;
   height: 100%;
@@ -378,6 +424,26 @@ textarea {
     grid-template-rows: minmax(340px, 46vh) minmax(420px, 1fr);
   }
 
+  .app-shell.is-gallery-hidden {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "editor"
+      "canvas";
+  }
+
+  .app-shell.is-editor-hidden {
+    grid-template-columns: minmax(250px, 320px) minmax(0, 1fr);
+    grid-template-areas: "gallery canvas";
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .app-shell.is-gallery-hidden.is-editor-hidden,
+  .app-shell.is-fullscreen {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "canvas";
+    grid-template-rows: minmax(0, 1fr);
+  }
+
   .gallery-pane {
     min-height: 0;
   }
@@ -401,6 +467,29 @@ textarea {
     grid-template-rows: auto minmax(360px, 48vh) minmax(420px, 1fr);
     height: auto;
     min-height: 100%;
+  }
+
+  .app-shell.is-gallery-hidden,
+  .app-shell.is-editor-hidden,
+  .app-shell.is-gallery-hidden.is-editor-hidden,
+  .app-shell.is-fullscreen {
+    grid-template-columns: 1fr;
+    grid-template-areas: "canvas";
+    grid-template-rows: minmax(420px, 1fr);
+  }
+
+  .app-shell.is-gallery-hidden:not(.is-editor-hidden):not(.is-fullscreen) {
+    grid-template-areas:
+      "editor"
+      "canvas";
+    grid-template-rows: minmax(360px, 48vh) minmax(420px, 1fr);
+  }
+
+  .app-shell.is-editor-hidden:not(.is-gallery-hidden):not(.is-fullscreen) {
+    grid-template-areas:
+      "gallery"
+      "canvas";
+    grid-template-rows: auto minmax(420px, 1fr);
   }
 
   .gallery-pane {
