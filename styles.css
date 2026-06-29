@@ -131,6 +131,7 @@ textarea {
   border-radius: 8px;
   background: #101820;
   color: #f4f7fb;
+  font-size: 0.88rem;
   line-height: 1.5;
   padding: 14px;
   tab-size: 2;
@@ -156,7 +157,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   background:
-    radial-gradient(circle at 1px 1px, rgba(31, 41, 51, 0.16) 1px, transparent 0),
+    radial-gradient(circle at 1px 1px, rgba(31, 41, 51, 0.09) 1px, transparent 0),
     #ffffff;
   background-size: 22px 22px;
   box-shadow: var(--shadow);
@@ -199,13 +200,18 @@ textarea {
   transform-origin: 0 0;
   user-select: none;
   will-change: transform;
+  -webkit-font-smoothing: antialiased;
 }
 
 .diagram-surface svg {
   display: block;
   max-width: none;
   height: auto;
+  filter: drop-shadow(0 10px 22px rgba(31, 41, 51, 0.12));
+  image-rendering: auto;
   overflow: visible;
+  shape-rendering: geometricPrecision;
+  text-rendering: geometricPrecision;
 }
 
 .diagram-surface .render-error {

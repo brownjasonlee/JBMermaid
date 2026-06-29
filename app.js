@@ -46,7 +46,14 @@ function updateLineCount() {
 }
 
 function applyTransform() {
-  surface.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+  surface.style.transform = `translate3d(${state.x}px, ${state.y}px, 0)`;
+
+  const svg = getSvgElement();
+  const bounds = getDiagramBounds();
+  if (svg && bounds) {
+    svg.style.width = `${bounds.width * state.scale}px`;
+    svg.style.height = `${bounds.height * state.scale}px`;
+  }
 }
 
 function getSvgElement() {
@@ -64,9 +71,15 @@ function getDiagramBounds() {
     return { width: box.width, height: box.height };
   }
 
+  const width = Number.parseFloat(svg.getAttribute("width"));
+  const height = Number.parseFloat(svg.getAttribute("height"));
+  if (width && height) {
+    return { width, height };
+  }
+
   return {
-    width: svg.getBoundingClientRect().width / state.scale,
-    height: svg.getBoundingClientRect().height / state.scale,
+    width: svg.getBoundingClientRect().width,
+    height: svg.getBoundingClientRect().height,
   };
 }
 
